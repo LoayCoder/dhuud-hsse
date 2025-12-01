@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { z } from 'zod';
-import { ShieldAlert, CheckCircle2, ArrowRight, Loader2, KeyRound, Building2, User } from 'lucide-react';
-import { useTenantStore } from '../../../store/tenant-store';
+import { ShieldAlert, CheckCircle2, ArrowRight, Loader2, KeyRound, Building2, User, Sparkles } from 'lucide-react';
+import { useTenantStore, DHUUD_LOGO, CLIENT_LOGO, DHUUD_TENANT, CLIENT_TENANT } from '../../../store/tenant-store';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
-import { PageProps, Tenant } from '../../../types';
+import { PageProps } from '../../../types';
 import { authApi } from '../../../lib/api/auth';
+import { cn } from '../../../lib/utils';
 
 // --- Zod Schemas ---
 
@@ -77,14 +78,22 @@ const RegisterPage: React.FC<PageProps> = ({ params: { locale }, onNavigate }) =
     
     try {
       const data = await authApi.validateInvite(codeToValidate);
+      
+      // LOGIC: Existing User -> Redirect to Login
+      if (data.existingUser) {
+        // Show a brief success/redirect message could be nice, but we'll jump for speed
+        // alert(`User ${data.email} already exists. Redirecting to Login...`);
+        onNavigate('/login');
+        return;
+      }
+
       setInviteData(data);
       
-      // WOW Factor: Dynamically switch branding to the invited Tenant!
-      // In a real app, we would fetch the full tenant object. 
-      // Here we mock the switch based on ID.
+      // LOGIC: New User -> Switch Branding & Show Form
       if (data.tenant_id === 'golf-saudi') {
-        // Trigger store update to switch theme colors immediately
-        useTenantStore.getState().toggleTenant(); 
+        useTenantStore.getState().setTenant(CLIENT_TENANT);
+      } else if (data.tenant_id === 'dhuud-admin') {
+        useTenantStore.getState().setTenant(DHUUD_TENANT);
       }
 
       setStep('register');
@@ -127,171 +136,204 @@ const RegisterPage: React.FC<PageProps> = ({ params: { locale }, onNavigate }) =
   // --- RENDER HELPERS ---
 
   const renderEnterCode = () => (
-    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="text-center mb-6">
-        <div className="mx-auto h-12 w-12 bg-primary/10 rounded-full flex items-center justify-center mb-4 text-primary">
-          <KeyRound className="h-6 w-6" />
+    <div className="relative z-10 w-full max-w-sm">
+      <div className="text-center mb-8">
+        {/* GATEWAY BRANDING: ALWAYS DHUUD INITIALLY */}
+        <div className="flex justify-center mb-6">
+           <div className="relative group">
+             <div className="absolute -inset-1 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-full blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+             <img src={DHUUD_LOGO} className="relative h-20 w-20 drop-shadow-2xl" alt="Dhuud Platform" />
+           </div>
         </div>
-        <h2 className="text-xl font-bold">{t.enterCode}</h2>
-        <p className="text-sm text-muted-foreground mt-2">
-          {locale === 'en' ? 'Enter the security code sent to your email.' : 'أدخل رمز الأمان المرسل إلى بريدك الإلكتروني.'}
+        
+        <h2 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-slate-100">{t.enterCode}</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 px-4">
+          {locale === 'en' ? 'Secure Access Gateway' : 'بوابة الوصول الآمن'}
         </p>
       </div>
 
-      <form onSubmit={(e) => { e.preventDefault(); handleValidateCode(inviteCode); }} className="space-y-4">
-        <Input 
-          placeholder="Ex: inv-8392-xyz"
-          value={inviteCode}
-          onChange={(e) => setInviteCode(e.target.value)}
-          className="text-center text-lg tracking-widest uppercase font-mono"
-        />
-        <Button className="w-full" disabled={!inviteCode}>
-          {locale === 'en' ? 'Validate Code' : 'تحقق من الرمز'} <ArrowRight className="ml-2 h-4 w-4" />
-        </Button>
-      </form>
-       <div className="mt-4 text-center">
-        <p className="text-xs text-muted-foreground">Try demo code: <span className="font-mono font-bold select-all">valid-code-123</span></p>
+      <div className="backdrop-blur-xl bg-white/40 dark:bg-black/40 border border-white/20 shadow-2xl rounded-2xl p-8 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-50 pointer-events-none" />
+        
+        <form onSubmit={(e) => { e.preventDefault(); handleValidateCode(inviteCode); }} className="space-y-6 relative z-10">
+          <div className="space-y-2">
+            <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest pl-1">Invitation Code</label>
+            <Input 
+              placeholder="INV-XXXX-XXXX"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              className="text-center text-xl h-14 tracking-[0.2em] font-mono bg-white/50 dark:bg-black/50 border-slate-200 dark:border-slate-800 focus:ring-primary/50 focus:border-primary transition-all shadow-inner rounded-xl placeholder:text-slate-300 dark:placeholder:text-slate-700"
+            />
+          </div>
+          <Button 
+            className="w-full h-12 text-lg shadow-lg hover:shadow-primary/25 transition-all rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 hover:from-slate-800 hover:to-slate-700 border border-white/10" 
+            disabled={!inviteCode}
+          >
+            {locale === 'en' ? 'Validate' : 'تحقق'} <ArrowRight className="ml-2 h-5 w-5" />
+          </Button>
+        </form>
+      </div>
+
+       <div className="mt-8 text-center bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/5">
+        <p className="text-[10px] text-slate-400 uppercase tracking-widest mb-3 font-bold">DEV MODE: CLICK TO TEST</p>
+        <div className="flex flex-col gap-2">
+            <button onClick={() => setInviteCode('INVITE-DHUUD-LOGIN')} className="text-xs font-mono text-cyan-600 dark:text-cyan-400 hover:underline bg-cyan-500/10 py-1.5 px-3 rounded border border-cyan-500/20 transition-colors">INVITE-DHUUD-LOGIN</button>
+            <button onClick={() => setInviteCode('INVITE-GOLF-SIGNUP')} className="text-xs font-mono text-green-600 dark:text-green-400 hover:underline bg-green-500/10 py-1.5 px-3 rounded border border-green-500/20 transition-colors">INVITE-GOLF-SIGNUP</button>
+            <button onClick={() => setInviteCode('INVITE-DHUUD-STAFF')} className="text-xs font-mono text-blue-600 dark:text-blue-400 hover:underline bg-blue-500/10 py-1.5 px-3 rounded border border-blue-500/20 transition-colors">INVITE-DHUUD-STAFF</button>
+        </div>
       </div>
     </div>
   );
 
   const renderRegisterForm = () => (
-    <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
-      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3">
-        <div className="flex items-center gap-3">
-          <Building2 className="h-5 w-5 text-primary" />
-          <div className="text-sm">
-            <p className="text-muted-foreground text-xs uppercase tracking-wider">{locale === 'en' ? 'Joining Tenant' : 'الانضمام إلى المنشأة'}</p>
-            <p className="font-bold">{inviteData.tenant_name}</p>
+    <div className="w-full max-w-lg animate-in fade-in slide-in-from-bottom-8 duration-700">
+      {/* BRAND HEADER */}
+      <div className="text-center mb-8">
+          <div className="flex justify-center mb-6">
+             <img src={tenant?.branding.logoUrl} className="h-20 object-contain drop-shadow-xl" alt="Tenant Logo" />
           </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <User className="h-5 w-5 text-primary" />
-          <div className="text-sm">
-            <p className="text-muted-foreground text-xs uppercase tracking-wider">{locale === 'en' ? 'Email (Locked)' : 'البريد الإلكتروني'}</p>
-            <p className="font-bold">{inviteData.email}</p>
-          </div>
-        </div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">{tenant?.name}</h1>
+          <p className="text-sm font-medium tracking-widest text-primary uppercase opacity-90 mt-1">Secure Registration</p>
       </div>
 
-      <form onSubmit={handleRegister} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium">{locale === 'en' ? 'First Name' : 'الاسم الأول'}</label>
-            <Input 
-              value={formData.firstName}
-              onChange={(e) => setFormData({...formData, firstName: e.target.value})}
-              className={errors.firstName ? 'border-destructive' : ''}
-            />
-            {errors.firstName && <p className="text-xs text-destructive">{errors.firstName}</p>}
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium">{locale === 'en' ? 'Last Name' : 'اسم العائلة'}</label>
-            <Input 
-              value={formData.lastName}
-              onChange={(e) => setFormData({...formData, lastName: e.target.value})}
-              className={errors.lastName ? 'border-destructive' : ''}
-            />
-             {errors.lastName && <p className="text-xs text-destructive">{errors.lastName}</p>}
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">{locale === 'en' ? 'Create Password' : 'إنشاء كلمة مرور'}</label>
-          <Input 
-            type="password"
-            value={formData.password}
-            onChange={(e) => setFormData({...formData, password: e.target.value})}
-            className={errors.password ? 'border-destructive' : ''}
-          />
-          {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">{locale === 'en' ? 'Confirm Password' : 'تأكيد كلمة المرور'}</label>
-          <Input 
-            type="password"
-            value={formData.confirmPassword}
-            onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-            className={errors.confirmPassword ? 'border-destructive' : ''}
-          />
-           {errors.confirmPassword && <p className="text-xs text-destructive">{errors.confirmPassword}</p>}
-        </div>
+      <div className="backdrop-blur-2xl bg-white/60 dark:bg-black/40 border border-white/20 dark:border-white/10 rounded-2xl shadow-2xl p-8 relative overflow-hidden">
         
-        <div className="pt-4">
-             <div className="flex items-start gap-2 mb-4">
-                 <input type="checkbox" id="terms" className="mt-1" required />
-                 <label htmlFor="terms" className="text-xs text-muted-foreground">
-                    I agree to the <button type="button" className="underline">Terms of Service</button> and <button type="button" className="underline">Privacy Policy</button>.
-                 </label>
-             </div>
-             <Button className="w-full h-11" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t.submit}
-            </Button>
+        <div className="bg-primary/5 border border-primary/10 rounded-xl p-5 mb-6 flex items-center gap-4">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
+               <User className="h-5 w-5" />
+            </div>
+            <div className="text-sm">
+                <p className="text-muted-foreground text-xs uppercase tracking-wider font-semibold">{locale === 'en' ? 'Email (Locked)' : 'البريد الإلكتروني'}</p>
+                <p className="font-bold text-foreground text-lg">{inviteData.email}</p>
+            </div>
+            <div className="ml-auto">
+               <CheckCircle2 className="h-5 w-5 text-green-500" />
+            </div>
         </div>
-      </form>
+
+        <form onSubmit={handleRegister} className="space-y-5">
+            <div className="grid grid-cols-2 gap-5">
+            <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground/80 ml-1">{locale === 'en' ? 'First Name' : 'الاسم الأول'}</label>
+                <Input 
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({...formData, firstName: e.target.value})}
+                  className={cn("bg-background/50 border-input/50 h-11", errors.firstName && 'border-destructive')}
+                />
+                {errors.firstName && <p className="text-xs text-destructive ml-1">{errors.firstName}</p>}
+            </div>
+            <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground/80 ml-1">{locale === 'en' ? 'Last Name' : 'اسم العائلة'}</label>
+                <Input 
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({...formData, lastName: e.target.value})}
+                  className={cn("bg-background/50 border-input/50 h-11", errors.lastName && 'border-destructive')}
+                />
+                {errors.lastName && <p className="text-xs text-destructive ml-1">{errors.lastName}</p>}
+            </div>
+            </div>
+
+            <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground/80 ml-1">{locale === 'en' ? 'Create Password' : 'إنشاء كلمة مرور'}</label>
+            <Input 
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({...formData, password: e.target.value})}
+                className={cn("bg-background/50 border-input/50 h-11", errors.password && 'border-destructive')}
+            />
+            {errors.password && <p className="text-xs text-destructive ml-1">{errors.password}</p>}
+            </div>
+
+            <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground/80 ml-1">{locale === 'en' ? 'Confirm Password' : 'تأكيد كلمة المرور'}</label>
+            <Input 
+                type="password"
+                value={formData.confirmPassword}
+                onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                className={cn("bg-background/50 border-input/50 h-11", errors.confirmPassword && 'border-destructive')}
+            />
+            {errors.confirmPassword && <p className="text-xs text-destructive ml-1">{errors.confirmPassword}</p>}
+            </div>
+            
+            <div className="pt-4">
+                <div className="flex items-start gap-3 mb-6 p-3 bg-background/30 rounded-lg border border-transparent hover:border-border transition-colors cursor-pointer" onClick={() => (document.getElementById('terms') as HTMLInputElement)?.click()}>
+                    <input type="checkbox" id="terms" className="mt-1 accent-primary h-4 w-4" required />
+                    <label htmlFor="terms" className="text-xs text-muted-foreground leading-relaxed cursor-pointer select-none">
+                        I agree to the <span className="font-semibold text-primary hover:underline">Terms of Service</span> and <span className="font-semibold text-primary hover:underline">Privacy Policy</span>. I understand this is a Zero Trust environment.
+                    </label>
+                </div>
+                <Button className="w-full h-12 text-base font-bold shadow-xl hover:shadow-primary/30 rounded-xl transition-all" disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t.submit}
+                </Button>
+            </div>
+        </form>
+      </div>
     </div>
   );
 
   const renderSuccess = () => (
-     <div className="text-center space-y-4 animate-in zoom-in duration-500">
-        <div className="mx-auto h-16 w-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
-            <CheckCircle2 className="h-8 w-8" />
+     <div className="text-center space-y-6 animate-in zoom-in duration-500 max-w-md w-full p-10 backdrop-blur-2xl bg-white/60 dark:bg-black/50 rounded-3xl shadow-2xl border border-green-500/20">
+        <div className="mx-auto h-24 w-24 bg-gradient-to-tr from-green-400 to-emerald-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-green-500/30">
+            <CheckCircle2 className="h-12 w-12" />
         </div>
-        <h2 className="text-2xl font-bold">{t.success}</h2>
-        <p className="text-muted-foreground">Redirecting to dashboard...</p>
-        <Button variant="outline" onClick={() => onNavigate('/login')}>
+        <div>
+            <h2 className="text-3xl font-bold text-foreground">{t.success}</h2>
+            <p className="text-muted-foreground mt-3 text-lg">Your account has been securely provisioned.</p>
+        </div>
+        <Button size="lg" className="w-full h-12 text-lg rounded-xl shadow-lg" onClick={() => onNavigate('/login')}>
             Go to Login
         </Button>
      </div>
   );
 
-  // --- MAIN LAYOUT ---
-  if (!tenant) return null;
-
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50/50 dark:bg-black/90 p-4">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 z-0 opacity-30 pointer-events-none" 
-             style={{ backgroundImage: 'radial-gradient(circle at center, var(--primary) 0.5px, transparent 1px)', backgroundSize: '24px 24px' }} 
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 text-foreground p-4 relative overflow-hidden font-sans selection:bg-primary/30">
+        
+        {/* Animated Background Blobs */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-400/30 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob"></div>
+            <div className="absolute top-[20%] right-[-10%] w-[35%] h-[35%] bg-blue-400/30 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-2000"></div>
+            <div className="absolute bottom-[-10%] left-[20%] w-[45%] h-[45%] bg-teal-400/30 rounded-full mix-blend-multiply filter blur-3xl opacity-50 animate-blob animation-delay-4000"></div>
+        </div>
+
+        {/* Grid Pattern Overlay */}
+        <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none" 
+             style={{ backgroundImage: 'radial-gradient(circle at center, currentColor 1px, transparent 1px)', backgroundSize: '40px 40px' }} 
         />
 
-        <div className="relative z-10 w-full max-w-md bg-background border shadow-2xl rounded-2xl overflow-hidden">
-            {/* Header / Branding */}
-            <div className="bg-primary/10 p-6 flex flex-col items-center border-b">
-                 <img src={tenant.branding.logoUrl} className="h-10 mb-2" alt="Logo" />
-                 <p className="text-xs font-bold tracking-widest text-primary uppercase">{tenant.name} Secure Access</p>
-            </div>
-
-            {/* Error Banner */}
-            {globalError && (
-                <div className="bg-destructive/10 text-destructive p-3 text-sm flex items-center gap-2 px-6">
-                    <ShieldAlert className="h-4 w-4" />
+        {/* Error Banner */}
+        {globalError && (
+            <div className="absolute top-8 z-50 animate-in slide-in-from-top-4">
+                <div className="bg-destructive/90 backdrop-blur-md text-destructive-foreground px-6 py-4 rounded-full shadow-2xl text-sm flex items-center gap-3 font-semibold border border-red-500/30">
+                    <ShieldAlert className="h-5 w-5" />
                     {globalError}
+                </div>
+            </div>
+        )}
+
+        <div className="relative z-10 w-full flex flex-col items-center">
+            {step === 'validating' && (
+                <div className="flex flex-col items-center justify-center space-y-6 backdrop-blur-md bg-white/30 dark:bg-black/30 p-12 rounded-3xl border border-white/10 shadow-xl">
+                    <div className="relative">
+                        <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse"></div>
+                        <Loader2 className="h-16 w-16 animate-spin text-primary relative z-10" />
+                    </div>
+                    <p className="text-xl font-medium text-foreground tracking-wide">{t.validating}</p>
                 </div>
             )}
 
-            <div className="p-6 sm:p-8">
-                {step === 'validating' && (
-                    <div className="flex flex-col items-center justify-center py-8 space-y-4">
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                        <p className="text-sm font-medium text-muted-foreground">{t.validating}</p>
-                    </div>
-                )}
-
-                {step === 'enter-code' && renderEnterCode()}
-                {step === 'register' && renderRegisterForm()}
-                {step === 'success' && renderSuccess()}
-            </div>
+            {step === 'enter-code' && renderEnterCode()}
+            {step === 'register' && renderRegisterForm()}
+            {step === 'success' && renderSuccess()}
             
-            {step !== 'success' && (
-                <div className="bg-muted/30 p-4 text-center border-t">
+            {step !== 'success' && step !== 'register' && (
+                <div className="mt-12 opacity-80 hover:opacity-100 transition-opacity">
                     <button 
                       onClick={() => onNavigate('/login')}
-                      className="text-xs text-muted-foreground hover:text-primary transition-colors hover:underline"
+                      className="text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-primary transition-colors hover:underline flex items-center gap-2"
                     >
-                        Already have an account? Sign in
+                        Already have an account? Sign in <ArrowRight className="h-3 w-3" />
                     </button>
                 </div>
             )}
